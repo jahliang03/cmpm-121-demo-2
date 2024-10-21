@@ -114,7 +114,7 @@ if (context) {
       if (lastPath) {
         redoStack.push(lastPath); // Add to redo stack
 
-        // Dispatch drawing-changed event
+        // Dispatch event
         canvas.dispatchEvent(new CustomEvent("drawing-changed"));
       }
     }
