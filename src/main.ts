@@ -21,7 +21,7 @@ app.append(canvas);
 
 // Add a button to clear the canvas
 const clearButton = document.createElement("button");
-clearButton.textContent = "Clear Canvas";
+clearButton.textContent = "Clear";
 app.append(clearButton);
 
 // Ensure document title is set
@@ -31,23 +31,31 @@ document.title = APP_NAME;
 const context = canvas.getContext("2d");
 
 if (context) {
-  context.fillStyle = "white"; // Set fill style to white
-  context.fillRect(0, 0, canvas.width, canvas.height); // Fill background
+  context.fillStyle = "white";
+  context.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Mouse event handlers
   let isDrawing = false;
+  const paths: { x: number, y: number }[][] = [];
+  let currentPath: { x: number, y: number }[] = [];
 
   canvas.addEventListener('mousedown', (event) => {
     isDrawing = true;
-    context.beginPath();
-    context.moveTo(event.offsetX, event.offsetY);
+    currentPath = [];
+    paths.push(currentPath);
   });
 
   canvas.addEventListener('mousemove', (event) => {
-    if (isDrawing) {
-      context.lineTo(event.offsetX, event.offsetY);
-      context.stroke();
-    }
+    if (!isDrawing) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const point = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+    currentPath.push(point);
+
+    // Dispatch custom event on point addition
+    canvas.dispatchEvent(new CustomEvent("drawing-changed"));
   });
 
   canvas.addEventListener('mouseup', () => {
@@ -58,12 +66,31 @@ if (context) {
     isDrawing = false;
   });
 
-  // Ensure drawing settings
-  context.strokeStyle = "black"; // Black color for drawing line
-  context.lineWidth = 2; // Line width
+  // Listen for "drawing-changed" to redraw the paths
+  canvas.addEventListener("drawing-changed", () => {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    paths.forEach(path => {
+      if (path.length > 0) {
+        context.beginPath();
+        context.moveTo(path[0].x, path[0].y);
+        path.forEach(point => {
+          context.lineTo(point.x, point.y);
+        });
+        context.stroke();
+      }
+    });
+  });
+
+  // Drawing style settings
+  context.strokeStyle = "black";
+  context.lineWidth = 2;
 
   // Clear button event listener
   clearButton.addEventListener('click', () => {
+    paths.length = 0; // Clear all paths
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillRect(0, 0, canvas.width, canvas.height); // Refill with white background
   });
