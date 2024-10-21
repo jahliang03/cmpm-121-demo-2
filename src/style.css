@@ -93,3 +93,9 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+#canvas{
+  border: 2px solid #000000; /* A solid border with a shade of green */
+  border-radius: 5%; /* Apply rounded corners */
+  box-shadow: 0 0 5px;
+}
