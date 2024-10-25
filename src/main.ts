@@ -32,15 +32,36 @@ const redoButton = document.createElement("button");
 redoButton.textContent = "Redo";
 app.append(redoButton);
 
+// Add "Thin" and "Thick" marker tool buttons
+const thinButton = document.createElement("button");
+thinButton.textContent = "Thin";
+app.append(thinButton);
+
+const thickButton = document.createElement("button");
+thickButton.textContent = "Thick";
+app.append(thickButton);
+
 // Ensure document title is set
 document.title = APP_NAME;
+
+// CSS helper function to set selected tool styling
+function setSelectedTool(button: HTMLButtonElement) {
+  document.querySelectorAll("button").forEach((btn) => btn.classList.remove("selectedTool"));
+  button.classList.add("selectedTool");
+}
+
+// Set initial line thickness and selected tool
+let lineThickness = 2; // Default to "Thin"
+setSelectedTool(thinButton); // Set "Thin" as the default tool
 
 // MarkerLine class definition
 class MarkerLine {
   private points: { x: number; y: number }[];
+  private thickness: number;
 
-  constructor(initialX: number, initialY: number) {
+  constructor(initialX: number, initialY: number, thickness: number) {
     this.points = [{ x: initialX, y: initialY }];
+    this.thickness = thickness;
   }
 
   // Extend the line by adding new points
@@ -51,6 +72,7 @@ class MarkerLine {
   // Draw the line on the provided context
   display(ctx: CanvasRenderingContext2D) {
     if (this.points.length > 0) {
+      ctx.lineWidth = this.thickness;
       ctx.beginPath();
       ctx.moveTo(this.points[0].x, this.points[0].y);
       for (let i = 1; i < this.points.length; i++) {
@@ -78,7 +100,7 @@ if (context) {
     const rect = canvas.getBoundingClientRect();
     const startX = event.clientX - rect.left;
     const startY = event.clientY - rect.top;
-    currentPath = new MarkerLine(startX, startY);
+    currentPath = new MarkerLine(startX, startY, lineThickness);
     paths.push(currentPath);
 
     // Clear redo stack when starting a new path
@@ -118,7 +140,6 @@ if (context) {
 
   // Drawing style settings
   context.strokeStyle = "black";
-  context.lineWidth = 2;
 
   // Clear button event listener
   clearButton.addEventListener("click", () => {
@@ -153,4 +174,17 @@ if (context) {
       }
     }
   });
+
+  // "Thin" tool button event listener
+  thinButton.addEventListener("click", () => {
+    lineThickness = 2; // Set thin line thickness
+    setSelectedTool(thinButton); // Update tool selection styling
+  });
+
+  // "Thick" tool button event listener
+  thickButton.addEventListener("click", () => {
+    lineThickness = 6; // Set thick line thickness
+    setSelectedTool(thickButton); // Update tool selection styling
+  });
 }
+
