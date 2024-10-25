@@ -41,6 +41,19 @@ const thickButton = document.createElement("button");
 thickButton.textContent = "Thick";
 app.append(thickButton);
 
+// Add sticker buttons
+const dinosaurButton = document.createElement("button");
+dinosaurButton.textContent = "🦖";
+app.append(dinosaurButton);
+
+const sakuraButton = document.createElement("button");
+sakuraButton.textContent = "🌸";
+app.append(sakuraButton);
+
+const sealButton = document.createElement("button");
+sealButton.textContent = "🦭";
+app.append(sealButton);
+
 // Ensure document title is set
 document.title = APP_NAME;
 
@@ -54,10 +67,11 @@ function setSelectedTool(button: HTMLButtonElement) {
 let lineThickness = 4; // Default to "Thin"
 setSelectedTool(thinButton); // Set "Thin" as the default tool
 
-// Variables for tool preview and drawing state
+// Variables for tool preview, drawing state, and stickers
 let isDrawing = false;
 let previewX = 0;
 let previewY = 0;
+let currentSticker: string | null = null;
 
 // MarkerLine class definition
 class MarkerLine {
@@ -88,6 +102,31 @@ class MarkerLine {
   }
 }
 
+// Sticker class definition
+class Sticker {
+  private x: number;
+  private y: number;
+  private emoji: string;
+
+  constructor(x: number, y: number, emoji: string) {
+    this.x = x;
+    this.y = y;
+    this.emoji = emoji;
+  }
+
+  // Reposition the sticker
+  drag(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+
+  // Draw the sticker on the provided context
+  display(ctx: CanvasRenderingContext2D) {
+    ctx.font = "24px Arial";
+    ctx.fillText(this.emoji, this.x, this.y);
+  }
+}
+
 // Get and set the canvas context
 const context = canvas.getContext("2d");
 
@@ -96,14 +135,25 @@ if (context) {
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   const paths: MarkerLine[] = [];
+  const stickers: Sticker[] = [];
   let currentPath: MarkerLine | null = null;
   const redoStack: MarkerLine[] = [];
 
   canvas.addEventListener("mousedown", (event) => {
-    isDrawing = true;
     const rect = canvas.getBoundingClientRect();
     const startX = event.clientX - rect.left;
     const startY = event.clientY - rect.top;
+
+    // Check if a sticker is selected
+    if (currentSticker) {
+      const newSticker = new Sticker(startX, startY, currentSticker);
+      stickers.push(newSticker);
+      canvas.dispatchEvent(new CustomEvent("drawing-changed"));
+      return; // Exit early to prevent line drawing
+    }
+
+    // Start line drawing
+    isDrawing = true;
     currentPath = new MarkerLine(startX, startY, lineThickness);
     paths.push(currentPath);
 
@@ -136,7 +186,7 @@ if (context) {
     isDrawing = false;
   });
 
-  // Listen for "drawing-changed" to redraw the paths
+  // Listen for "drawing-changed" to redraw the paths and stickers
   canvas.addEventListener("drawing-changed", () => {
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = "white";
@@ -146,31 +196,39 @@ if (context) {
     paths.forEach((path) => {
       path.display(context);
     });
+
+    // Draw all stickers
+    stickers.forEach((sticker) => {
+      sticker.display(context);
+    });
   });
 
   // Listen for "tool-moved" to display the tool preview
   canvas.addEventListener("tool-moved", () => {
     if (!isDrawing) {
-      // Redraw paths first
+      // Redraw paths and stickers first
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = "white";
       context.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw all paths
       paths.forEach((path) => {
         path.display(context);
       });
 
-      // Draw the tool preview as a circle
-      // Draw the tool preview as a filled circle
-      context.beginPath();
-      context.arc(previewX, previewY, lineThickness / 2, 0, 2 * Math.PI);
-      context.fillStyle = "black"; // Set fill color
-      context.fill(); // Fill the circle
-      context.strokeStyle = "black";
-      context.lineWidth = 1;
-      context.stroke();
+      stickers.forEach((sticker) => {
+        sticker.display(context);
+      });
 
+      // Draw the tool preview
+      if (currentSticker) {
+        context.font = "24px Arial";
+        context.fillText(currentSticker, previewX, previewY);
+      } else {
+        context.beginPath();
+        context.arc(previewX, previewY, lineThickness / 2, 0, 2 * Math.PI);
+        context.fillStyle = "black";
+        context.fill();
+      }
     }
   });
 
@@ -180,48 +238,44 @@ if (context) {
   // Clear button event listener
   clearButton.addEventListener("click", () => {
     paths.length = 0; // Clear all paths
+    stickers.length = 0; // Clear all stickers
     redoStack.length = 0; // Clear redo stack
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillRect(0, 0, canvas.width, canvas.height); // Refill with white background
   });
 
-  // Undo button event listener
-  undoButton.addEventListener("click", () => {
-    if (paths.length > 0) {
-      const lastPath = paths.pop(); // Remove the last path
-      if (lastPath) {
-        redoStack.push(lastPath); // Add to redo stack
-
-        // Dispatch event
-        canvas.dispatchEvent(new CustomEvent("drawing-changed"));
-      }
-    }
-  });
-
-  // Redo button event listener
-  redoButton.addEventListener("click", () => {
-    if (redoStack.length > 0) {
-      const lastRedo = redoStack.pop(); // Remove from redo stack
-      if (lastRedo) {
-        paths.push(lastRedo); // Add back to paths
-
-        // Dispatch drawing-changed event
-        canvas.dispatchEvent(new CustomEvent("drawing-changed"));
-      }
-    }
-  });
-
   // "Thin" tool button event listener
   thinButton.addEventListener("click", () => {
     lineThickness = 4; // Set smaller circle for thin tool
+    currentSticker = null; // Clear current sticker
     setSelectedTool(thinButton); // Update tool selection styling
   });
 
   // "Thick" tool button event listener
   thickButton.addEventListener("click", () => {
     lineThickness = 12; // Set bigger circle for thick tool
+    currentSticker = null; // Clear current sticker
     setSelectedTool(thickButton); // Update tool selection styling
   });
+
+  // Dinosaur sticker button event listener
+  dinosaurButton.addEventListener("click", () => {
+    currentSticker = "🦖"; // Set sticker to dinosaur
+    setSelectedTool(dinosaurButton); // Update tool selection styling
+    canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
+  });
+
+  // Sakura flower sticker button event listener
+  sakuraButton.addEventListener("click", () => {
+    currentSticker = "🌸"; // Set sticker to sakura flower
+    setSelectedTool(sakuraButton); // Update tool selection styling
+    canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
+  });
+
+  // Seal sticker button event listener
+  sealButton.addEventListener("click", () => {
+    currentSticker = "🦭"; // Set sticker to seal
+    setSelectedTool(sealButton); // Update tool selection styling
+    canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
+  });
 }
-
-
