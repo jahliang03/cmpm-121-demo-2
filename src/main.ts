@@ -35,6 +35,32 @@ app.append(redoButton);
 // Ensure document title is set
 document.title = APP_NAME;
 
+// MarkerLine class definition
+class MarkerLine {
+  private points: { x: number; y: number }[];
+
+  constructor(initialX: number, initialY: number) {
+    this.points = [{ x: initialX, y: initialY }];
+  }
+
+  // Extend the line by adding new points
+  drag(x: number, y: number) {
+    this.points.push({ x, y });
+  }
+
+  // Draw the line on the provided context
+  display(ctx: CanvasRenderingContext2D) {
+    if (this.points.length > 0) {
+      ctx.beginPath();
+      ctx.moveTo(this.points[0].x, this.points[0].y);
+      for (let i = 1; i < this.points.length; i++) {
+        ctx.lineTo(this.points[i].x, this.points[i].y);
+      }
+      ctx.stroke();
+    }
+  }
+}
+
 // Get and set the canvas context
 const context = canvas.getContext("2d");
 
@@ -43,29 +69,31 @@ if (context) {
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   let isDrawing = false;
-  const paths: { x: number, y: number }[][] = [];
-  let currentPath: { x: number, y: number }[] = [];
-  const redoStack: { x: number, y: number }[][] = [];
+  const paths: MarkerLine[] = [];
+  let currentPath: MarkerLine | null = null;
+  const redoStack: MarkerLine[] = [];
 
   canvas.addEventListener("mousedown", (event) => {
     isDrawing = true;
-    currentPath = [];
+    const rect = canvas.getBoundingClientRect();
+    const startX = event.clientX - rect.left;
+    const startY = event.clientY - rect.top;
+    currentPath = new MarkerLine(startX, startY);
     paths.push(currentPath);
+
     // Clear redo stack when starting a new path
     redoStack.length = 0;
   });
 
   canvas.addEventListener("mousemove", (event) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !currentPath) return;
 
     const rect = canvas.getBoundingClientRect();
-    const point = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    };
-    currentPath.push(point);
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    currentPath.drag(x, y);
 
-    // Dispatch custom event on point addition
+    // Dispatch custom event on line extension
     canvas.dispatchEvent(new CustomEvent("drawing-changed"));
   });
 
@@ -83,15 +111,8 @@ if (context) {
     context.fillStyle = "white";
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    paths.forEach(path => {
-      if (path.length > 0) {
-        context.beginPath();
-        context.moveTo(path[0].x, path[0].y);
-        path.forEach(point => {
-          context.lineTo(point.x, point.y);
-        });
-        context.stroke();
-      }
+    paths.forEach((path) => {
+      path.display(context);
     });
   });
 
