@@ -51,8 +51,13 @@ function setSelectedTool(button: HTMLButtonElement) {
 }
 
 // Set initial line thickness and selected tool
-let lineThickness = 2; // Default to "Thin"
+let lineThickness = 4; // Default to "Thin"
 setSelectedTool(thinButton); // Set "Thin" as the default tool
+
+// Variables for tool preview and drawing state
+let isDrawing = false;
+let previewX = 0;
+let previewY = 0;
 
 // MarkerLine class definition
 class MarkerLine {
@@ -90,7 +95,6 @@ if (context) {
   context.fillStyle = "white";
   context.fillRect(0, 0, canvas.width, canvas.height);
 
-  let isDrawing = false;
   const paths: MarkerLine[] = [];
   let currentPath: MarkerLine | null = null;
   const redoStack: MarkerLine[] = [];
@@ -108,15 +112,20 @@ if (context) {
   });
 
   canvas.addEventListener("mousemove", (event) => {
-    if (!isDrawing || !currentPath) return;
-
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    currentPath.drag(x, y);
 
-    // Dispatch custom event on line extension
-    canvas.dispatchEvent(new CustomEvent("drawing-changed"));
+    // If drawing, update the current path
+    if (isDrawing && currentPath) {
+      currentPath.drag(x, y);
+      canvas.dispatchEvent(new CustomEvent("drawing-changed"));
+    } else {
+      // Update tool preview position
+      previewX = x;
+      previewY = y;
+      canvas.dispatchEvent(new CustomEvent("tool-moved"));
+    }
   });
 
   canvas.addEventListener("mouseup", () => {
@@ -133,9 +142,36 @@ if (context) {
     context.fillStyle = "white";
     context.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Draw all paths
     paths.forEach((path) => {
       path.display(context);
     });
+  });
+
+  // Listen for "tool-moved" to display the tool preview
+  canvas.addEventListener("tool-moved", () => {
+    if (!isDrawing) {
+      // Redraw paths first
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "white";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw all paths
+      paths.forEach((path) => {
+        path.display(context);
+      });
+
+      // Draw the tool preview as a circle
+      // Draw the tool preview as a filled circle
+      context.beginPath();
+      context.arc(previewX, previewY, lineThickness / 2, 0, 2 * Math.PI);
+      context.fillStyle = "black"; // Set fill color
+      context.fill(); // Fill the circle
+      context.strokeStyle = "black";
+      context.lineWidth = 1;
+      context.stroke();
+
+    }
   });
 
   // Drawing style settings
@@ -177,14 +213,15 @@ if (context) {
 
   // "Thin" tool button event listener
   thinButton.addEventListener("click", () => {
-    lineThickness = 2; // Set thin line thickness
+    lineThickness = 4; // Set smaller circle for thin tool
     setSelectedTool(thinButton); // Update tool selection styling
   });
 
   // "Thick" tool button event listener
   thickButton.addEventListener("click", () => {
-    lineThickness = 6; // Set thick line thickness
+    lineThickness = 12; // Set bigger circle for thick tool
     setSelectedTool(thickButton); // Update tool selection styling
   });
 }
+
 
