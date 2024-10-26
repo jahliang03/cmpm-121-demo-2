@@ -32,6 +32,10 @@ const redoButton = document.createElement("button");
 redoButton.textContent = "Redo";
 app.append(redoButton);
 
+const exportButton = document.createElement("button");
+exportButton.textContent = "Export";
+app.append(exportButton);
+
 // Add "Thin" and "Thick" marker tool buttons
 const thinButton = document.createElement("button");
 thinButton.textContent = "Thin";
@@ -41,18 +45,44 @@ const thickButton = document.createElement("button");
 thickButton.textContent = "Thick";
 app.append(thickButton);
 
-// Add sticker buttons
-const dinosaurButton = document.createElement("button");
-dinosaurButton.textContent = "🦖";
-app.append(dinosaurButton);
+// Container for sticker buttons
+const stickerContainer = document.createElement("div");
+stickerContainer.id = "sticker-container";
+app.append(stickerContainer);
 
-const sakuraButton = document.createElement("button");
-sakuraButton.textContent = "🌸";
-app.append(sakuraButton);
+// Define initial set of stickers
+let stickers = [
+  { emoji: "🦖", label: "Dinosaur" },
+  { emoji: "🌸", label: "Sakura Flower" },
+  { emoji: "🦭", label: "Seal" },
+];
 
-const sealButton = document.createElement("button");
-sealButton.textContent = "🦭";
-app.append(sealButton);
+// Create buttons for stickers
+function createStickerButtons() {
+  // Clear existing stickers to avoid duplicates
+  stickerContainer.innerHTML = "";
+
+  // Add buttons for each sticker
+  stickers.forEach((sticker) => {
+    const button = document.createElement("button");
+    button.textContent = sticker.emoji;
+    button.title = sticker.label;
+    button.addEventListener("click", () => {
+      currentSticker = sticker.emoji;
+      setSelectedTool(button);
+      canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
+    });
+    stickerContainer.append(button);
+  });
+}
+
+// Call function to create initial sticker buttons
+createStickerButtons();
+
+// Add a "Custom Sticker" button
+const customStickerButton = document.createElement("button");
+customStickerButton.textContent = "Custom Sticker";
+app.append(customStickerButton);
 
 // Ensure document title is set
 document.title = APP_NAME;
@@ -135,7 +165,7 @@ if (context) {
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   const paths: MarkerLine[] = [];
-  const stickers: Sticker[] = [];
+  const stickerObjects: Sticker[] = [];
   let currentPath: MarkerLine | null = null;
   const redoStack: MarkerLine[] = [];
 
@@ -147,7 +177,7 @@ if (context) {
     // Check if a sticker is selected
     if (currentSticker) {
       const newSticker = new Sticker(startX, startY, currentSticker);
-      stickers.push(newSticker);
+      stickerObjects.push(newSticker);
       canvas.dispatchEvent(new CustomEvent("drawing-changed"));
       return; // Exit early to prevent line drawing
     }
@@ -198,7 +228,7 @@ if (context) {
     });
 
     // Draw all stickers
-    stickers.forEach((sticker) => {
+    stickerObjects.forEach((sticker) => {
       sticker.display(context);
     });
   });
@@ -215,7 +245,7 @@ if (context) {
         path.display(context);
       });
 
-      stickers.forEach((sticker) => {
+      stickerObjects.forEach((sticker) => {
         sticker.display(context);
       });
 
@@ -238,7 +268,7 @@ if (context) {
   // Clear button event listener
   clearButton.addEventListener("click", () => {
     paths.length = 0; // Clear all paths
-    stickers.length = 0; // Clear all stickers
+    stickerObjects.length = 0; // Clear all stickers
     redoStack.length = 0; // Clear redo stack
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillRect(0, 0, canvas.width, canvas.height); // Refill with white background
@@ -258,24 +288,49 @@ if (context) {
     setSelectedTool(thickButton); // Update tool selection styling
   });
 
-  // Dinosaur sticker button event listener
-  dinosaurButton.addEventListener("click", () => {
-    currentSticker = "🦖"; // Set sticker to dinosaur
-    setSelectedTool(dinosaurButton); // Update tool selection styling
-    canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
+  // "Custom Sticker" button event listener
+  customStickerButton.addEventListener("click", () => {
+    const userEmoji = prompt("Enter your custom sticker:", "🍎");
+    if (userEmoji) {
+      stickers.push({ emoji: userEmoji, label: "Custom Sticker" });
+      currentSticker = userEmoji;
+      setSelectedTool(customStickerButton); // Highlight the "Custom Sticker" button
+      createStickerButtons(); // Recreate the sticker buttons
+      canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
+    }
   });
 
-  // Sakura flower sticker button event listener
-  sakuraButton.addEventListener("click", () => {
-    currentSticker = "🌸"; // Set sticker to sakura flower
-    setSelectedTool(sakuraButton); // Update tool selection styling
-    canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
-  });
+  // Export button event listener
+exportButton.addEventListener("click", () => {
+  // Create a temporary canvas of size 1024x1024
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = 1024;
+  exportCanvas.height = 1024;
 
-  // Seal sticker button event listener
-  sealButton.addEventListener("click", () => {
-    currentSticker = "🦭"; // Set sticker to seal
-    setSelectedTool(sealButton); // Update tool selection styling
-    canvas.dispatchEvent(new CustomEvent("tool-moved")); // Fire "tool-moved" event
-  });
+  // Prepare the context for scaling
+  const exportContext = exportCanvas.getContext("2d");
+  if (exportContext) {
+    // Set the background to white
+    exportContext.fillStyle = "white";
+    exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+    // Scale to 1024x1024 (4x in each dimension from 400x400)
+    exportContext.scale(2.56, 2.56);
+
+    // Draw all paths and stickers on the new canvas
+    paths.forEach((path) => {
+      path.display(exportContext);
+    });
+
+    stickerObjects.forEach((sticker) => {
+      sticker.display(exportContext);
+    });
+
+    // Trigger download of the canvas content as a PNG file
+    const anchor = document.createElement("a");
+    anchor.href = exportCanvas.toDataURL("image/png");
+    anchor.download = "sketchpad.png";
+    anchor.click();
+  }
+});
 }
