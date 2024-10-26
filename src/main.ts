@@ -1,13 +1,13 @@
 import "./style.css";
 
-const APP_NAME = "Hello";
+const APP_NAME = "Sketchpad";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 // Clear previous content or append carefully
 app.innerHTML = "";
 
 // Create and append the title
-const gameName = "Sketchpad Game";
+const gameName = "Sketchpad";
 const title = document.createElement("h1");
 title.innerHTML = gameName;
 app.append(title);
@@ -56,6 +56,17 @@ const thickButton = document.createElement("button");
 thickButton.textContent = "Thick";
 buttonContainer.append(thickButton);
 
+// Add a color picker input
+const colorPicker = document.createElement("input");
+colorPicker.type = "color";
+colorPicker.value = "#000000"; // Default to black
+colorPicker.style.width = "120px";
+colorPicker.style.height = "40px";
+colorPicker.style.padding = "0";
+colorPicker.style.border = "none";
+colorPicker.style.cursor = "pointer";
+buttonContainer.append(colorPicker);
+
 // Container for sticker buttons inside button container
 const stickerContainer = document.createElement("div");
 stickerContainer.id = "sticker-container";
@@ -80,7 +91,9 @@ function createStickerButtons() {
     button.title = sticker.label;
     button.addEventListener("click", () => {
       currentSticker = sticker.emoji;
+      randomizeToolProperties(); // Randomize color and rotation
       setSelectedTool(button);
+      updateToolPreview(); // Update the tool preview
     });
     stickerContainer.append(button);
   });
@@ -100,24 +113,43 @@ function setSelectedTool(button: HTMLButtonElement) {
   button.classList.add("selectedTool");
 }
 
-
 // Variables for drawing and stickers
 let lineThickness = 4; // Default to "Thin"
 let isDrawing = false;
+let currentColor = "#000000"; // Default color to black
 let currentSticker: string | null = null;
-
+let currentRotation = 0; // Default rotation
 const actions: (MarkerLine | Sticker)[] = [];
 const redoStack: (MarkerLine | Sticker)[] = [];
 let currentPath: MarkerLine | null = null;
+
+// Color picker event listener
+colorPicker.addEventListener("input", (event) => {
+  const target = event.target as HTMLInputElement;
+  currentColor = target.value; // Update the current color
+});
+
+// Randomize color and rotation
+function randomizeToolProperties() {
+  // Randomize color
+  currentColor = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+
+  // Randomize rotation (0 to 360 degrees)
+  currentRotation = Math.floor(Math.random() * 361);
+
+  updateToolPreview(); // Update the tool preview to reflect changes
+}
 
 // MarkerLine class definition
 class MarkerLine {
   private points: { x: number; y: number }[];
   private thickness: number;
+  private color: string;
 
-  constructor(initialX: number, initialY: number, thickness: number) {
+  constructor(initialX: number, initialY: number, thickness: number, color: string) {
     this.points = [{ x: initialX, y: initialY }];
     this.thickness = thickness;
+    this.color = color;
   }
 
   drag(x: number, y: number) {
@@ -126,6 +158,7 @@ class MarkerLine {
 
   display(ctx: CanvasRenderingContext2D) {
     if (this.points.length > 0) {
+      ctx.strokeStyle = this.color; // Set stroke color
       ctx.lineWidth = this.thickness;
       ctx.beginPath();
       ctx.moveTo(this.points[0].x, this.points[0].y);
@@ -142,16 +175,23 @@ class Sticker {
   private x: number;
   private y: number;
   private emoji: string;
+  private rotation: number;
 
-  constructor(x: number, y: number, emoji: string) {
+  constructor(x: number, y: number, emoji: string, rotation: number) {
     this.x = x;
     this.y = y;
     this.emoji = emoji;
+    this.rotation = rotation;
   }
 
   display(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate((this.rotation * Math.PI) / 180);
     ctx.font = "24px Arial";
-    ctx.fillText(this.emoji, this.x, this.y);
+    ctx.fillStyle = currentColor;
+    ctx.fillText(this.emoji, 0, 0);
+    ctx.restore();
   }
 }
 
@@ -168,13 +208,13 @@ if (context) {
     const startY = event.clientY - rect.top;
 
     if (currentSticker) {
-      const newSticker = new Sticker(startX, startY, currentSticker);
+      const newSticker = new Sticker(startX, startY, currentSticker, currentRotation);
       actions.push(newSticker);
       redoStack.length = 0; // Clear redo stack
       redrawCanvas();
     } else {
       isDrawing = true;
-      currentPath = new MarkerLine(startX, startY, lineThickness);
+      currentPath = new MarkerLine(startX, startY, lineThickness, currentColor);
       actions.push(currentPath);
       redoStack.length = 0; // Clear redo stack
     }
@@ -206,6 +246,27 @@ if (context) {
     actions.forEach((action) => action.display(context));
   }
 
+  // Update tool preview (circle or sticker preview)
+  function updateToolPreview() {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    redrawCanvas();
+
+    if (currentSticker) {
+      context.save();
+      context.translate(50, 50); // Example position for preview
+      context.rotate((currentRotation * Math.PI) / 180);
+      context.font = "24px Arial";
+      context.fillStyle = currentColor;
+      context.fillText(currentSticker, 0, 0);
+      context.restore();
+    } else {
+      context.beginPath();
+      context.arc(50, 50, lineThickness, 0, 2 * Math.PI);
+      context.fillStyle = currentColor;
+      context.fill();
+    }
+  }
+
   // Button functionalities
   clearButton.addEventListener("click", () => {
     actions.length = 0;
@@ -230,12 +291,14 @@ if (context) {
   thinButton.addEventListener("click", () => {
     lineThickness = 3;
     currentSticker = null;
+    randomizeToolProperties();
     setSelectedTool(thinButton);
   });
 
   thickButton.addEventListener("click", () => {
     lineThickness = 10;
     currentSticker = null;
+    randomizeToolProperties();
     setSelectedTool(thickButton);
   });
 
@@ -245,6 +308,7 @@ if (context) {
       stickers.push({ emoji: userEmoji, label: "Custom Sticker" });
       createStickerButtons();
       currentSticker = userEmoji;
+      randomizeToolProperties();
       setSelectedTool(customStickerButton);
     }
   });
