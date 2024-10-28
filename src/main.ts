@@ -19,6 +19,7 @@ layoutContainer.style.alignItems = "flex-start";
 layoutContainer.style.gap = "20px";
 app.append(layoutContainer);
 
+
 // Add a canvas element programmatically if not in HTML
 const canvas = document.createElement("canvas");
 canvas.id = "canvas";
