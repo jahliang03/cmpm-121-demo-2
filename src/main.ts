@@ -3,9 +3,6 @@ import "./style.css";
 const APP_NAME = "Sketchpad";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
-// Clear previous content or append carefully
-app.innerHTML = "";
-
 // Create and append the title
 const gameName = "Sketchpad";
 const title = document.createElement("h1");
@@ -26,6 +23,15 @@ canvas.id = "canvas";
 canvas.width = 400; // Set canvas width
 canvas.height = 400; // Set canvas height
 layoutContainer.append(canvas);
+
+let lineThickness = 4; // Default to "Thin"
+let isDrawing = false;
+let currentColor = "#000000"; // Default color to black
+let currentSticker: string | null = null;
+let currentRotation = 0; // Default rotation
+const actions: (MarkerLine | Sticker)[] = [];
+const redoStack: (MarkerLine | Sticker)[] = [];
+let currentPath: MarkerLine | null = null;
 
 // Create a container for the buttons
 const buttonContainer = document.createElement("div");
@@ -73,6 +79,12 @@ const stickerContainer = document.createElement("div");
 stickerContainer.id = "sticker-container";
 buttonContainer.append(stickerContainer);
 
+const customStickerButton = document.createElement("button");
+customStickerButton.textContent = "Custom Sticker";
+buttonContainer.append(customStickerButton);
+
+const context = canvas.getContext("2d");
+
 // Initial set of stickers
 let stickers = [
   { emoji: "🦖", label: "Dinosaur" },
@@ -80,68 +92,6 @@ let stickers = [
   { emoji: "🦭", label: "Seal" },
 ];
 
-// Create buttons for stickers
-function createStickerButtons() {
-  // Clear existing stickers to avoid duplicates
-  stickerContainer.innerHTML = "";
-
-  // Add buttons for each sticker
-  stickers.forEach((sticker) => {
-    const button = document.createElement("button");
-    button.textContent = sticker.emoji;
-    button.title = sticker.label;
-    button.addEventListener("click", () => {
-      currentSticker = sticker.emoji;
-      randomizeToolProperties(); // Randomize color and rotation
-      setSelectedTool(button);
-      updateToolPreview(); // Update the tool preview
-    });
-    stickerContainer.append(button);
-  });
-}
-
-// Call function to create initial sticker buttons
-createStickerButtons();
-
-// Add a "Custom Sticker" button
-const customStickerButton = document.createElement("button");
-customStickerButton.textContent = "Custom Sticker";
-buttonContainer.append(customStickerButton);
-
-// CSS helper function to set selected tool styling
-function setSelectedTool(button: HTMLButtonElement) {
-  document.querySelectorAll("button").forEach((btn) => btn.classList.remove("selectedTool"));
-  button.classList.add("selectedTool");
-}
-
-// Variables for drawing and stickers
-let lineThickness = 4; // Default to "Thin"
-let isDrawing = false;
-let currentColor = "#000000"; // Default color to black
-let currentSticker: string | null = null;
-let currentRotation = 0; // Default rotation
-const actions: (MarkerLine | Sticker)[] = [];
-const redoStack: (MarkerLine | Sticker)[] = [];
-let currentPath: MarkerLine | null = null;
-
-// Color picker event listener
-colorPicker.addEventListener("input", (event) => {
-  const target = event.target as HTMLInputElement;
-  currentColor = target.value; // Update the current color
-});
-
-// Randomize color and rotation
-function randomizeToolProperties() {
-  // Randomize color
-  currentColor = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
-
-  // Randomize rotation (0 to 360 degrees)
-  currentRotation = Math.floor(Math.random() * 361);
-
-  updateToolPreview(); // Update the tool preview to reflect changes
-}
-
-// MarkerLine class definition
 class MarkerLine {
   private points: { x: number; y: number }[];
   private thickness: number;
@@ -171,7 +121,6 @@ class MarkerLine {
   }
 }
 
-// Sticker class definition
 class Sticker {
   private x: number;
   private y: number;
@@ -196,65 +145,51 @@ class Sticker {
   }
 }
 
-// Get canvas context
-const context = canvas.getContext("2d");
-if (context) {
-  context.fillStyle = "white";
-  context.fillRect(0, 0, canvas.width, canvas.height);
+// Create buttons for stickers
+function createStickerButtons() {
+  stickerContainer.innerHTML = "";
 
-  // Canvas event listeners
-  canvas.addEventListener("mousedown", (event) => {
-    const rect = canvas.getBoundingClientRect();
-    const startX = event.clientX - rect.left;
-    const startY = event.clientY - rect.top;
-
-    if (currentSticker) {
-      const newSticker = new Sticker(startX, startY, currentSticker, currentRotation);
-      actions.push(newSticker);
-      redoStack.length = 0; // Clear redo stack
-      redrawCanvas();
-    } else {
-      isDrawing = true;
-      currentPath = new MarkerLine(startX, startY, lineThickness, currentColor);
-      actions.push(currentPath);
-      redoStack.length = 0; // Clear redo stack
-    }
+  stickers.forEach((sticker) => {
+    const button = document.createElement("button");
+    button.textContent = sticker.emoji;
+    button.title = sticker.label;
+    button.addEventListener("click", () => {
+      currentSticker = sticker.emoji;
+      randomizeToolProperties();
+      setSelectedTool(button);
+      updateToolPreview();
+    });
+    stickerContainer.append(button);
   });
+}
 
-  canvas.addEventListener("mousemove", (event) => {
-    if (!isDrawing) return;
+function setSelectedTool(button: HTMLButtonElement) {
+  document.querySelectorAll("button").forEach((btn) => btn.classList.remove("selectedTool"));
+  button.classList.add("selectedTool");
+}
 
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+function randomizeToolProperties() {
+  currentColor = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+  currentRotation = Math.floor(Math.random() * 361);
+  updateToolPreview();
+}
 
-    if (currentPath) {
-      currentPath.drag(x, y);
-      redrawCanvas();
-    }
-  });
-
-  canvas.addEventListener("mouseup", () => {
-    isDrawing = false;
-  });
-
-  // Redraw function
-  function redrawCanvas() {
+function redrawCanvas() {
+  if (context){ 
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = "white";
     context.fillRect(0, 0, canvas.width, canvas.height);
-
     actions.forEach((action) => action.display(context));
-  }
+    }
+}
 
-  // Update tool preview (circle or sticker preview)
-  function updateToolPreview() {
+function updateToolPreview() {
+  if (context) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     redrawCanvas();
-
     if (currentSticker) {
       context.save();
-      context.translate(50, 50); // Example position for preview
+      context.translate(50, 50);
       context.rotate((currentRotation * Math.PI) / 180);
       context.font = "24px Arial";
       context.fillStyle = currentColor;
@@ -267,70 +202,116 @@ if (context) {
       context.fill();
     }
   }
+}
 
-  // Button functionalities
-  clearButton.addEventListener("click", () => {
-    actions.length = 0;
+colorPicker.addEventListener("input", (event) => {
+  const target = event.target as HTMLInputElement;
+  currentColor = target.value;
+});
+
+canvas.addEventListener("mousedown", (event) => {
+  const rect = canvas.getBoundingClientRect();
+  const startX = event.clientX - rect.left;
+  const startY = event.clientY - rect.top;
+
+  if (currentSticker) {
+    const newSticker = new Sticker(startX, startY, currentSticker, currentRotation);
+    actions.push(newSticker);
     redoStack.length = 0;
     redrawCanvas();
-  });
+  } else {
+    isDrawing = true;
+    currentPath = new MarkerLine(startX, startY, lineThickness, currentColor);
+    actions.push(currentPath);
+    redoStack.length = 0;
+  }
+});
 
-  undoButton.addEventListener("click", () => {
-    if (actions.length > 0) {
-      redoStack.push(actions.pop()!); // Move the last action to the redo stack
-      redrawCanvas();
-    }
-  });
+canvas.addEventListener("mousemove", (event) => {
+  if (!isDrawing) return;
 
-  redoButton.addEventListener("click", () => {
-    if (redoStack.length > 0) {
-      actions.push(redoStack.pop()!); // Move the last redo action back to actions
-      redrawCanvas();
-    }
-  });
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
 
-  thinButton.addEventListener("click", () => {
-    lineThickness = 3;
-    currentSticker = null;
+  if (currentPath) {
+    currentPath.drag(x, y);
+    redrawCanvas();
+  }
+});
+
+canvas.addEventListener("mouseup", () => {
+  isDrawing = false;
+});
+
+clearButton.addEventListener("click", () => {
+  actions.length = 0;
+  redoStack.length = 0;
+  redrawCanvas();
+});
+
+undoButton.addEventListener("click", () => {
+  if (actions.length > 0) {
+    redoStack.push(actions.pop()!);
+    redrawCanvas();
+  }
+});
+
+redoButton.addEventListener("click", () => {
+  if (redoStack.length > 0) {
+    actions.push(redoStack.pop()!);
+    redrawCanvas();
+  }
+});
+
+thinButton.addEventListener("click", () => {
+  lineThickness = 3;
+  currentSticker = null;
+  randomizeToolProperties();
+  setSelectedTool(thinButton);
+});
+
+thickButton.addEventListener("click", () => {
+  lineThickness = 10;
+  currentSticker = null;
+  randomizeToolProperties();
+  setSelectedTool(thickButton);
+});
+
+customStickerButton.addEventListener("click", () => {
+  const userEmoji = prompt("Enter your custom sticker:", "🍎");
+  if (userEmoji) {
+    stickers.push({ emoji: userEmoji, label: "Custom Sticker" });
+    createStickerButtons();
+    currentSticker = userEmoji;
     randomizeToolProperties();
-    setSelectedTool(thinButton);
-  });
+    setSelectedTool(customStickerButton);
+  }
+});
 
-  thickButton.addEventListener("click", () => {
-    lineThickness = 10;
-    currentSticker = null;
-    randomizeToolProperties();
-    setSelectedTool(thickButton);
-  });
+exportButton.addEventListener("click", () => {
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = 1024;
+  exportCanvas.height = 1024;
 
-  customStickerButton.addEventListener("click", () => {
-    const userEmoji = prompt("Enter your custom sticker:", "🍎");
-    if (userEmoji) {
-      stickers.push({ emoji: userEmoji, label: "Custom Sticker" });
-      createStickerButtons();
-      currentSticker = userEmoji;
-      randomizeToolProperties();
-      setSelectedTool(customStickerButton);
-    }
-  });
+  const exportContext = exportCanvas.getContext("2d");
+  if (exportContext) {
+    exportContext.fillStyle = "white";
+    exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+    exportContext.scale(2.56, 2.56);
 
-  exportButton.addEventListener("click", () => {
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = 1024;
-    exportCanvas.height = 1024;
+    actions.forEach((action) => action.display(exportContext));
 
-    const exportContext = exportCanvas.getContext("2d");
-    if (exportContext) {
-      exportContext.fillStyle = "white";
-      exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-      exportContext.scale(2.56, 2.56);
+    const anchor = document.createElement("a");
+    anchor.href = exportCanvas.toDataURL("image/png");
+    anchor.download = "sketchpad.png";
+    anchor.click();
+  }
+});
 
-      actions.forEach((action) => action.display(exportContext));
-
-      const anchor = document.createElement("a");
-      anchor.href = exportCanvas.toDataURL("image/png");
-      anchor.download = "sketchpad.png";
-      anchor.click();
-    }
-  });
+if (context) {
+  context.fillStyle = "white";
+  context.fillRect(0, 0, canvas.width, canvas.height);
 }
+
+createStickerButtons();
