@@ -3,85 +3,66 @@ import "./style.css";
 const APP_NAME = "Sketchpad";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
-// Create and append the title
 const gameName = "Sketchpad";
 const title = document.createElement("h1");
 title.innerHTML = gameName;
 app.append(title);
 
-// Create a container for the canvas and buttons
 const layoutContainer = document.createElement("div");
-layoutContainer.style.display = "flex";
-layoutContainer.style.alignItems = "flex-start";
-layoutContainer.style.gap = "20px";
+layoutContainer.classList.add("layout-container");
 app.append(layoutContainer);
 
-
-// Add a canvas element programmatically if not in HTML
 const canvas = document.createElement("canvas");
 canvas.id = "canvas";
-canvas.width = 400; // Set canvas width
-canvas.height = 400; // Set canvas height
+canvas.width = 400;
+canvas.height = 400;
 layoutContainer.append(canvas);
 
 let lineThickness = 4; // Default to "Thin"
 let isDrawing = false;
 let currentColor = "#000000"; // Default color to black
+let currentRotation = 0;
+
 let currentSticker: string | null = null;
-let currentRotation = 0; // Default rotation
 const actions: (MarkerLine | Sticker)[] = [];
 const redoStack: (MarkerLine | Sticker)[] = [];
 let currentPath: MarkerLine | null = null;
 
-// Create a container for the buttons
 const buttonContainer = document.createElement("div");
 buttonContainer.classList.add("button-container");
 layoutContainer.append(buttonContainer);
 
-// Add buttons to the button container
-const clearButton = document.createElement("button");
-clearButton.textContent = "Clear";
-buttonContainer.append(clearButton);
+const buttonConfigs = [
+  { id: "clearButton", text: "Clear" },
+  { id: "undoButton", text: "Undo" },
+  { id: "redoButton", text: "Redo" },
+  { id: "exportButton", text: "Export" },
+  { id: "thinButton", text: "Thin" },
+  { id: "thickButton", text: "Thick" }
+];
 
-const undoButton = document.createElement("button");
-undoButton.textContent = "Undo";
-buttonContainer.append(undoButton);
+const [clearButton, undoButton, redoButton, exportButton, thinButton, thickButton] = createButtons(buttonConfigs, buttonContainer);
 
-const redoButton = document.createElement("button");
-redoButton.textContent = "Redo";
-buttonContainer.append(redoButton);
-
-const exportButton = document.createElement("button");
-exportButton.textContent = "Export";
-buttonContainer.append(exportButton);
-
-const thinButton = document.createElement("button");
-thinButton.textContent = "Thin";
-buttonContainer.append(thinButton);
-
-const thickButton = document.createElement("button");
-thickButton.textContent = "Thick";
-buttonContainer.append(thickButton);
-
-// Add a color picker input
-const colorPicker = document.createElement("input");
-colorPicker.type = "color";
-colorPicker.value = "#000000"; // Default to black
-colorPicker.style.width = "120px";
-colorPicker.style.height = "40px";
-colorPicker.style.padding = "0";
-colorPicker.style.border = "none";
-colorPicker.style.cursor = "pointer";
-buttonContainer.append(colorPicker);
-
-// Container for sticker buttons inside button container
 const stickerContainer = document.createElement("div");
 stickerContainer.id = "sticker-container";
 buttonContainer.append(stickerContainer);
 
 const customStickerButton = document.createElement("button");
+customStickerButton.id = "customStickerButton";
 customStickerButton.textContent = "Custom Sticker";
 buttonContainer.append(customStickerButton);
+
+const colorPicker = document.createElement("input");
+colorPicker.type = "color";
+colorPicker.value = "#000000"; // Default to black
+Object.assign(colorPicker.style, {
+  width: "120px",
+  height: "40px",
+  padding: "0",
+  border: "none",
+  cursor: "pointer"
+});
+buttonContainer.append(colorPicker);
 
 const context = canvas.getContext("2d");
 
@@ -145,7 +126,16 @@ class Sticker {
   }
 }
 
-// Create buttons for stickers
+function createButtons(buttonConfigs, container = document.body) {
+  return buttonConfigs.map(config => {
+    const button = document.createElement("button");
+    button.id = config.id;
+    button.textContent = config.text;
+    container.appendChild(button);
+    return button;
+  });
+}
+
 function createStickerButtons() {
   stickerContainer.innerHTML = "";
 
